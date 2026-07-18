@@ -1,0 +1,6 @@
+{
+  "name": "Content Store",
+  "description": "Landing page moderna e elegante em dark mode para venda de pacotes de conteúdo digital premium com integração direta com o Telegram.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

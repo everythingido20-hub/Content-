@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Store - Exclusive Premium Content Packages</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Vue 3 Global Build CDN (Loads natively under file:// without Babel Standalone/CORS limitations) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f1f1f;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #ff0000;
+    }
+    
+    body {
+      background-color: #0a0a0a;
+      font-family: 'Inter', sans-serif;
+    }
+
+    [v-cloak] {
+      display: none;
+    }
+  </style>
+</head>
+<body class="selection:bg-red-600 selection:text-white">
+
+  <!-- Main Vue App Mount Node with v-cloak to prevent flash of raw template -->
+  <div id="root" v-cloak class="min-h-screen bg-[#0a0a0a] text-gray-100 flex flex-col">
+    
+    <!-- Top Live Banner -->
+    <div class="w-full bg-red-950/40 border-b border-red-900/40 py-2.5 px-4 overflow-hidden relative">
+      <div class="max-w-7xl mx-auto flex items-center justify-between text-xs font-mono">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+          <span class="text-red-500 font-bold uppercase tracking-wider">LIVE STATUS:</span>
+          <div class="h-5 overflow-hidden relative min-w-[280px] sm:min-w-[400px]">
+            <span v-if="activeNotification" class="absolute text-gray-300 font-sans transition-all duration-300 transform translate-y-0 opacity-100">
+              {{ activeNotification }}
+            </span>
+            <span v-else class="absolute text-gray-400 font-sans">
+              🔥 VIP Discount active for all purchases completed today via Telegram!
+            </span>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-4 text-gray-400">
+          <span class="flex items-center gap-1">
+            <span v-html="getIcon('zap', 'w-3.5 h-3.5 text-red-500')"></span> Instant Delivery
+          </span>
+          <span class="flex items-center gap-1">
+            <span v-html="getIcon('shieldCheck', 'w-3.5 h-3.5 text-red-500')"></span> Secure Download
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="w-full bg-[#0a0a0a] border-b border-[#222] py-6 px-4 md:px-10 flex flex-col md:flex-row justify-between items-start md:items-center">
+      <div>
+        <h1 class="text-[#ff0000] text-2xl sm:text-3xl font-black uppercase tracking-[2px] font-sans">
+          Content Store
+        </h1>
+        <p class="text-[#888] text-[11px] sm:text-xs uppercase tracking-[1px] font-medium mt-1">
+          Access to exclusive premium content packages
+        </p>
+      </div>
+
+      <nav class="flex items-center gap-6 my-4 md:my-0 text-[10px] font-bold uppercase tracking-[1.5px] text-neutral-400">
+        <button @click="scrollToSection('controls-section')" class="hover:text-[#ff0000] cursor-pointer transition-colors duration-200">
+          Catalog
+        </button>
+        <button @click="scrollToSection('trust-and-faq')" class="hover:text-[#ff0000] cursor-pointer transition-colors duration-200">
+          How It Works
+        </button>
+        <button @click="scrollToSection('trust-and-faq')" class="hover:text-[#ff0000] cursor-pointer transition-colors duration-200">
+          VIP Support
+        </button>
+      </nav>
+
+      <div class="flex items-center gap-4">
+        <template v-if="!isEditingBlockedInBaked">
+          <button
+            v-if="isAdmin"
+            @click="logoutAdmin"
+            class="text-[10px] bg-red-950/40 hover:bg-red-900/40 text-red-500 font-mono font-bold py-1 px-2.5 rounded border border-red-900/40 uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer"
+            title="Exit Edit Mode"
+          >
+            <span v-html="getIcon('lock', 'w-3.5 h-3.5 text-red-500 animate-pulse')"></span> Logout Admin
+          </button>
+          <button
+            v-else
+            @click="showAdminPasswordModal = true"
+            class="text-[10px] text-neutral-500 hover:text-white font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+            title="Access edit panel"
+          >
+            <span v-html="getIcon('lock', 'w-3.5 h-3.5 text-neutral-600')"></span> Admin Panel
+          </button>
+        </template>
+        <div class="text-xs text-[#ff0000] font-bold tracking-widest uppercase font-mono">
+          EXCLUSIVE • 2026
+        </div>
+      </div>
+    </header>
+    <div v-if="isAdmin && !isEditingBlockedInBaked" class="w-full bg-[#111] border-b border-red-900/40 py-3.5 px-4 md:px-10 flex flex-col sm:flex-row items-center justify-between gap-4" id="admin-panel-bar">
+      <div class="flex items-center gap-2.5 text-left">
+        <div class="p-1.5 bg-red-950/80 rounded border border-red-900/50">
+          <span v-html="getIcon('sparkles', 'w-4 h-4 text-red-500 animate-pulse')"></span>
+        </div>
+        <div>
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider font-sans">You are in Edit Mode (Admin)</h4>
+          <p class="text-[10px] text-neutral-400 font-sans">Hover or tap on cards to customize videos, prices, and descriptions.</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+        <label class="flex items-center gap-2 text-[10px] text-neutral-400 font-mono cursor-pointer hover:text-white transition-colors">
+          <input 
+            type="checkbox" 
+            v-model="disableEditingInExport"
+            class="rounded bg-neutral-900 border-neutral-800 text-red-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+          />
+          <span>Lock Editing on Export</span>
+        </label>
+
+        <button
+          @click="handleExportHtml"
+          class="bg-red-600 hover:bg-red-700 text-white font-mono font-bold text-[10px] py-1.5 px-3 rounded-[2px] uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-md shadow-red-950/60 cursor-pointer"
+          title="Download ready website with all your customizations saved permanently!"
+        >
+          <span v-html="getIcon('upload', 'w-3.5 h-3.5')"></span> Export Ready HTML
+        </button>
+      </div>
+    </div>
+
+    <!-- Export Success Message Banner -->
+    <div v-if="exportSuccess" class="w-full bg-emerald-950/60 border-b border-emerald-900/40 py-3 px-4 text-center text-xs text-emerald-400 font-medium font-mono animate-fade-in">
+      🎉 Success! Your index.html file has been downloaded with all customizations saved permanently!
+    </div>
+
+    <!-- Intro bar -->
+    <section class="w-full bg-[#0d0d0d] border-b border-[#222] py-3.5 px-4 md:px-10 flex items-center justify-between">
+      <h2 class="text-xs sm:text-sm font-light text-[#ccc] tracking-[0.5px]">
+        Explore our samples and choose your favorite package.
+      </h2>
+      <div class="hidden sm:flex items-center gap-2 text-[11px] text-neutral-500 font-mono">
+        <span v-html="getIcon('crown', 'w-3.5 h-3.5 text-red-500 animate-pulse')"></span>
+        <span>DIRECT SUPPORT ACTIVE</span>
+      </div>
+    </section>
+
+    <!-- Search Section -->
+    <section class="max-w-2xl mx-auto w-full px-4 mb-10 mt-6" id="controls-section">
+      <div class="bg-[#121212] border border-[#1f1f1f] p-4 rounded-[2px] shadow-xl">
+        <div class="relative w-full">
+          <input
+            type="text"
+            placeholder="SEARCH PACK..."
+            v-model="searchQuery"
+            class="w-full bg-neutral-950 border border-[#1f1f1f] focus:border-[#ff0000] rounded-[2px] py-2.5 px-4 pl-10 text-[10px] text-gray-200 placeholder-neutral-600 focus:outline-none focus:ring-1 focus:ring-[#ff0000] uppercase tracking-wider transition-all font-mono"
+          />
+          <div class="absolute left-3.5 top-3">
+            <span v-html="getIcon('search', 'w-4 h-4 text-neutral-600')"></span>
+          </div>
+          <button
+            v-if="searchQuery"
+            @click="searchQuery = ''"
+            class="absolute right-3 top-3 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+          >
+            <span v-html="getIcon('x', 'w-3.5 h-3.5')"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4 px-1 text-xs text-gray-500">
+        <div>
+          Showing <span class="text-gray-300 font-bold">{{ filteredPacks.length }}</span> of <span class="text-gray-300 font-bold">30</span> premium packages
+        </div>
+        <button
+          v-if="searchQuery"
+          @click="searchQuery = ''"
+          class="text-red-500 hover:text-red-400 font-medium transition-colors flex items-center gap-1 cursor-pointer"
+        >
+          Clear search
+        </button>
+      </div>
+    </section>
+
+    <!-- Grid Section -->
+    <main class="max-w-7xl mx-auto w-full px-4 mb-24 flex-grow">
+      <div v-if="filteredPacks.length > 0" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
+        <div
+          v-for="pack in filteredPacks"
+          :key="pack.id"
+          class="group bg-[#121212] border border-[#1f1f1f] rounded-[2px] overflow-hidden hover:border-[#ff0000] flex flex-col justify-between transition-colors duration-200 relative"
+          :id="'pack-' + pack.id"
+        >
+          <!-- Image or Video preview -->
+          <div 
+            @click="selectedPreviewPack = pack"
+            class="relative h-[110px] w-full overflow-hidden bg-neutral-950 border-b border-[#1f1f1f] flex items-center justify-center cursor-pointer"
+          >
+            <video 
+              v-if="packVideos[pack.id]"
+              :src="packVideos[pack.id]"
+              class="absolute inset-0 w-full h-full object-cover"
+              autoplay muted loop playsinline preload="auto"
+            ></video>
+            <template v-else>
+              <img 
+                :src="pack.imageUrl" 
+                :alt="packTitles[pack.id] || pack.title"
+                class="absolute inset-0 w-full h-full object-cover opacity-10 group-hover:opacity-20 transition-opacity duration-300 filter grayscale"
+                referrerpolicy="no-referrer"
+              />
+              <div class="relative z-10 text-[10px] font-bold text-neutral-600 group-hover:text-[#ff0000] transition-colors tracking-[2px] uppercase font-mono">
+                PREVIEW
+              </div>
+            </template>
+
+            <!-- Admin customization click block overlay -->
+            <div 
+              v-if="isAdmin && !isEditingBlockedInBaked"
+              @click.stop="openEditModal(pack)"
+              class="absolute inset-0 bg-red-950/85 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 cursor-pointer"
+            >
+              <span v-html="getIcon('sliders', 'w-5 h-5 text-white animate-bounce')"></span>
+              <span class="text-[9px] font-mono font-bold text-white uppercase tracking-wider">Customizar Card</span>
+            </div>
+
+            <!-- Price Badge on Card overlay -->
+            <div class="absolute bottom-1.5 left-2 bg-red-600 text-white text-[9px] font-mono font-bold uppercase py-0.5 px-2 rounded-[1px] shadow-lg z-10">
+              {{ packPrices[pack.id] || pack.price }}
+            </div>
+          </div>
+
+          <!-- Description & Title -->
+          <div @click="selectedPreviewPack = pack" class="p-4 flex-grow flex flex-col justify-between cursor-pointer">
+            <div>
+              <div class="flex items-center justify-between gap-1.5 mb-1.5">
+                <span class="text-[8px] font-mono text-neutral-500 uppercase tracking-widest">
+                  PACK #{{ pack.id }}
+                </span>
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Pronto para envio"></span>
+              </div>
+              <h3 class="font-display font-bold text-xs text-white group-hover:text-[#ff0000] transition-colors line-clamp-1">
+                {{ packTitles[pack.id] || pack.title }}
+              </h3>
+              <p class="text-[10px] text-gray-500 line-clamp-2 mt-1.5 leading-relaxed">
+                {{ packDescriptions[pack.id] || pack.description }}
+              </p>
+            </div>
+
+            <!-- Specifications metadata list -->
+            <div class="space-y-1 mt-4 pt-3 border-t border-[#1a1a1a]">
+              <div v-for="spec in pack.specs" class="flex items-center gap-1.5 text-[9px] text-gray-400">
+                <span class="w-1 h-1 rounded-full bg-red-600"></span>
+                <span class="truncate">{{ spec }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action block with Direct Telegram Launch -->
+          <div class="p-3 bg-neutral-950/60 border-t border-[#1a1a1a] flex gap-2">
+            <button 
+              @click="selectedPreviewPack = pack"
+              class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 py-1.5 px-2 text-[9px] font-mono font-bold uppercase transition-colors rounded-[2px] cursor-pointer flex items-center justify-center gap-1"
+            >
+              <span v-html="getIcon('eye', 'w-3.5 h-3.5')"></span> Details
+            </button>
+            <a 
+              :href="'https://t.me/sisjujd?text=' + encodeURIComponent('Hello! I want to buy the following package:\n\n📦 Package: ' + (packTitles[pack.id] || pack.title) + ' (ID: ' + pack.id + ')\n📝 Description: ' + (packDescriptions[pack.id] || pack.description) + '\n💰 Price: ' + (packPrices[pack.id] || pack.price))"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex-1 bg-red-600 hover:bg-red-700 text-white font-mono font-bold py-1.5 px-2 text-[9px] uppercase tracking-wider text-center transition-colors rounded-[2px] flex items-center justify-center gap-1 shadow-md shadow-red-950/20"
+            >
+              <span v-html="getIcon('send', 'w-3 h-3')"></span> Unlock
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Results State -->
+      <div v-else class="text-center py-20 bg-[#121212] border border-neutral-900 rounded-2xl max-w-xl mx-auto my-6">
+        <span v-html="getIcon('search', 'w-10 h-10 text-neutral-700 mx-auto mb-3')"></span>
+        <h4 class="font-bold text-white text-sm uppercase tracking-wider">No packages found</h4>
+        <p class="text-xs text-neutral-500 mt-1 max-w-xs mx-auto leading-relaxed">We couldn't find any packages matching your search terms. Try searching for something else.</p>
+        <button
+          @click="searchQuery = ''"
+          class="bg-neutral-900 hover:bg-neutral-800 text-red-500 text-[10px] font-mono font-bold py-2 px-4 rounded border border-neutral-800 mt-4 uppercase tracking-wider transition-all"
+        >
+          View All Packages
+        </button>
+      </div>
+    </main>
+
+    <!-- Trust & FAQ Info Section -->
+    <section class="w-full bg-[#0d0d0d] border-t border-[#1a1a1a] py-16 px-4 md:px-10" id="trust-and-faq">
+      <div class="max-w-7xl mx-auto">
+        <!-- How it works -->
+        <div class="text-center max-w-xl mx-auto mb-12">
+          <h2 class="font-display font-bold text-2xl sm:text-3xl text-white mb-2">How to Unlock Your Pack</h2>
+          <p class="text-gray-400 text-sm">Simple, direct and 100% human-guided process via Telegram</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+          <div class="bg-[#121212] border border-neutral-800 p-6 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-lg bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shrink-0 font-mono font-black">
+              01
+            </div>
+            <div>
+              <h4 class="font-semibold text-white mb-1">Choose the Package</h4>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Explore the 30 available packs in our catalog, analyze pricing and premium content specifications.
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-[#121212] border border-neutral-800 p-6 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-lg bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shrink-0 font-mono font-black">
+              02
+            </div>
+            <div>
+              <h4 class="font-semibold text-white mb-1">Start Chat</h4>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Click the "Unlock" button. You will be redirected to Telegram with the exact package details prefilled.
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-[#121212] border border-neutral-800 p-6 rounded-xl flex items-start gap-4">
+            <div class="w-10 h-10 rounded-lg bg-red-600/10 border border-red-500/20 flex items-center justify-center text-red-500 shrink-0 font-mono font-black">
+              03
+            </div>
+            <div>
+              <h4 class="font-semibold text-white mb-1">Receive Instantly</h4>
+              <p class="text-gray-400 text-xs leading-relaxed">
+                Our team will provide simplified payment options. Once confirmed, your official download links arrive instantly!
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Support Status -->
+        <div class="border-t border-neutral-900 pt-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div>
+            <div class="inline-flex items-center gap-1.5 text-xs font-mono text-red-500 mb-2">
+              <span v-html="getIcon('shieldCheck', 'w-4 h-4')"></span>
+              <span>QUALITY & SECURITY GUARANTEED</span>
+            </div>
+            <h3 class="font-display font-bold text-3xl text-white mb-4">
+              Verified files, virus-free and constantly updated
+            </h3>
+            <p class="text-gray-400 text-sm leading-relaxed mb-6">
+              All digital content packages are hosted on secure, high-speed private cloud servers (Google Drive and Mega.nz), guaranteeing maximum transfer speeds and absolute link stability.
+            </p>
+            
+            <div class="space-y-3.5">
+              <div class="flex items-center gap-3">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <span v-html="getIcon('checkCircle', 'w-4 h-4')"></span>
+                </div>
+                <span class="text-xs text-gray-300 font-medium">Dedicated high-speed servers</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <span v-html="getIcon('checkCircle', 'w-4 h-4')"></span>
+                </div>
+                <span class="text-xs text-gray-300 font-medium">Lifetime links with automatic updates</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                  <span v-html="getIcon('checkCircle', 'w-4 h-4')"></span>
+                </div>
+                <span class="text-xs text-gray-300 font-medium">Human support and installation guidance</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live support status card -->
+          <div class="bg-[#121212] border border-neutral-800 p-8 rounded-2xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-red-600/5 blur-3xl rounded-full"></div>
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="relative">
+                  <div class="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center text-xl">
+                    🧑‍💻
+                  </div>
+                  <span class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#121212] animate-pulse"></span>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-white text-sm">Content Store Support</h4>
+                  <span class="text-xs text-gray-400">Support Active</span>
+                </div>
+              </div>
+              <span class="bg-red-950/40 text-red-500 text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border border-red-900/40">
+                ONLINE NOW
+              </span>
+            </div>
+
+            <blockquote class="text-gray-300 italic text-xs leading-relaxed mb-6 bg-neutral-950 p-4 rounded-xl border-l-2 border-red-600">
+              "Hello! Welcome to the Content Store. We are ready to assist you. Simply choose your favorite package from our catalog and click the purchase button. If you have any questions regarding package content, payment methods, or installation, message me directly on Telegram!"
+            </blockquote>
+
+            <a
+              href="https://t.me/sisjujd"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="w-full bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-800 font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 transition-all hover:border-red-600/30 uppercase tracking-wider"
+            >
+              <span v-html="getIcon('messageSquare', 'w-4 h-4 text-red-500')"></span>
+              Contact Us on Telegram (@sisjujd)
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Site Footer -->
+    <footer class="bg-[#050505] border-t border-[#222] py-4 px-4 md:px-10 mt-auto text-center text-[10px] text-[#444] font-mono tracking-wider uppercase" id="footer-section">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          CONTENT STORE &copy; {{ currentYear }} - PREMIUM CONTENT FOR PROFESSIONAL CREATORS
+        </div>
+        <div class="flex items-center gap-4 text-[9px] lowercase font-sans text-neutral-600 hover:text-neutral-400 transition-colors">
+          <a href="https://t.me/sisjujd" target="_blank" rel="noopener noreferrer" class="hover:text-red-500 font-bold uppercase transition-colors tracking-widest flex items-center gap-1">
+            <span v-html="getIcon('send', 'w-2.5 h-2.5')"></span> Telegram (@sisjujd)
+          </a>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Lightbox Detail Modal -->
+    <div 
+      v-if="selectedPreviewPack"
+      class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+      @click="selectedPreviewPack = null"
+    >
+      <div 
+        class="bg-[#121212] border border-neutral-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl relative"
+        @click.stop
+      >
+        <!-- Close Button -->
+        <button
+          @click="selectedPreviewPack = null"
+          class="absolute top-4 right-4 bg-black/60 hover:bg-neutral-800 text-gray-400 hover:text-white p-2 rounded-full z-10 transition-colors border border-neutral-800 cursor-pointer"
+        >
+          <span v-html="getIcon('x', 'w-4 h-4')"></span>
+        </button>
+
+        <!-- Video Player -->
+        <div class="relative aspect-[16/10] bg-neutral-950 flex flex-col items-center justify-center border-b border-neutral-800 overflow-hidden group">
+          <video 
+            v-if="packVideos[selectedPreviewPack.id]"
+            :src="packVideos[selectedPreviewPack.id]"
+            class="w-full h-full object-cover"
+            autoplay muted loop playsinline controls preload="auto"
+            @error="handleVideoError(selectedPreviewPack.id)"
+          ></video>
+          <template v-else>
+            <img 
+              :src="selectedPreviewPack.imageUrl" 
+              :alt="selectedPreviewPack.title"
+              class="absolute inset-0 w-full h-full object-cover opacity-20 filter grayscale"
+              referrerpolicy="no-referrer"
+            />
+            <div class="relative z-10 text-[10px] font-bold text-neutral-600 tracking-[2px] uppercase font-mono">
+              DEFAULT VIDEO DEMO PREVIEW
+            </div>
+          </template>
+          <div class="absolute top-3 left-3 bg-red-600 text-white text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded shadow z-10">
+            VIDEO DEMO
+          </div>
+        </div>
+
+        <div class="p-6">
+          <h3 class="font-display font-extrabold text-xl text-white mb-2">
+            {{ packTitles[selectedPreviewPack.id] || selectedPreviewPack.title }}
+          </h3>
+          <p class="text-gray-400 text-xs sm:text-sm leading-relaxed mb-6">
+            {{ packDescriptions[selectedPreviewPack.id] || selectedPreviewPack.description }}
+          </p>
+
+          <!-- Checkout Block -->
+          <div class="bg-neutral-950 border border-neutral-900 rounded-xl p-4.5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <span class="text-[8px] font-mono text-neutral-500 uppercase tracking-widest block">UNLOCKING PRICE</span>
+              <span class="text-2xl font-black text-white font-mono mt-0.5 block">
+                {{ packPrices[selectedPreviewPack.id] || selectedPreviewPack.price }}
+              </span>
+            </div>
+
+            <div class="flex gap-2.5 w-full sm:w-auto">
+              <button
+                @click="handleShare(selectedPreviewPack.id)"
+                class="flex-1 sm:flex-none bg-neutral-900 hover:bg-neutral-800 text-gray-400 hover:text-white px-4 py-3 rounded-xl text-xs font-mono font-bold uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-neutral-800"
+              >
+                <span v-html="getIcon(copiedLinkIndex === selectedPreviewPack.id ? 'check' : 'link', 'w-4 h-4')"></span>
+                {{ copiedLinkIndex === selectedPreviewPack.id ? 'Copied!' : 'Share' }}
+              </button>
+              <a
+                :href="'https://t.me/sisjujd?text=' + encodeURIComponent('Hello! I want to buy the following package:\n\n📦 Package: ' + (packTitles[selectedPreviewPack.id] || selectedPreviewPack.title) + ' (ID: ' + selectedPreviewPack.id + ')\n📝 Description: ' + (packDescriptions[selectedPreviewPack.id] || selectedPreviewPack.description) + '\n💰 Price: ' + (packPrices[selectedPreviewPack.id] || selectedPreviewPack.price))"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="flex-1 sm:flex-none bg-[#ff0000] hover:bg-red-700 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-red-950/40"
+              >
+                <span v-html="getIcon('send', 'w-4 h-4')"></span>
+                Unlock Pack
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Customization Editor Modal (Admin Mode) -->
+    <div 
+      v-if="editingPack && !isEditingBlockedInBaked"
+      class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+      @click="editingPack = null"
+    >
+      <div 
+        class="bg-[#121212] border border-neutral-800 w-full max-w-md rounded-2xl p-6 relative shadow-2xl"
+        @click.stop
+      >
+        <!-- Close Button -->
+        <button
+          @click="editingPack = null"
+          class="absolute top-4 right-4 bg-black/60 hover:bg-neutral-800 text-gray-400 hover:text-white p-2 rounded-full z-10 transition-colors border border-neutral-800 cursor-pointer"
+        >
+          <span v-html="getIcon('x', 'w-4 h-4')"></span>
+        </button>
+
+        <div class="mb-4">
+          <span class="text-[10px] font-mono text-[#ff0000] font-bold uppercase tracking-wider">
+            Customization Module
+          </span>
+          <h3 class="text-white font-sans font-bold text-sm sm:text-base uppercase tracking-wide mt-1">
+            Pack #{{ editingPack.id }} - {{ packTitles[editingPack.id] || editingPack.title }}
+          </h3>
+          <p class="text-[11px] text-neutral-400 mt-1 leading-relaxed">
+            Instantly customize the price, description, and display video of this card.
+          </p>
+        </div>
+
+        <!-- Form container -->
+        <div class="space-y-4 my-4 max-h-[50vh] overflow-y-auto pr-1">
+          <!-- Title input -->
+          <div>
+            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1">
+              Pack Title
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Cinematic Presets"
+              v-model="customTitleInput"
+              class="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff0000] rounded-lg py-2 px-3 text-xs text-gray-200 placeholder-neutral-600 focus:outline-none transition-all font-mono"
+            />
+          </div>
+
+          <!-- Price input -->
+          <div>
+            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1">
+              Selling Price
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. $49 or 35"
+              v-model="customPriceInput"
+              class="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff0000] rounded-lg py-2 px-3 text-xs text-gray-200 placeholder-neutral-600 focus:outline-none transition-all font-mono"
+            />
+          </div>
+
+          <!-- Description input -->
+          <div>
+            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1">
+              Detailed Description
+            </label>
+            <textarea
+              placeholder="Write the custom description for the package..."
+              rows="3"
+              v-model="customDescriptionInput"
+              class="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff0000] rounded-lg py-2 px-3 text-xs text-gray-200 placeholder-neutral-600 focus:outline-none transition-all resize-none"
+            ></textarea>
+          </div>
+
+          <!-- Video source switch buttons -->
+          <div>
+            <label class="block text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1.5">
+              Display Video Source
+            </label>
+            <div class="grid grid-cols-3 gap-1 p-1 bg-neutral-900 border border-neutral-800 rounded-lg">
+              <button
+                type="button"
+                @click="switchVideoSource('default')"
+                :class="videoSourceType === 'default' ? 'bg-[#ff0000] text-white font-bold' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'"
+                class="py-1.5 px-2 rounded-md text-[10px] font-mono uppercase tracking-wider text-center transition-all cursor-pointer"
+              >
+                Default
+              </button>
+              <button
+                type="button"
+                @click="switchVideoSource('local')"
+                :class="videoSourceType === 'local' ? 'bg-[#ff0000] text-white font-bold' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'"
+                class="py-1.5 px-2 rounded-md text-[10px] font-mono uppercase tracking-wider text-center transition-all cursor-pointer"
+              >
+                Local Upload
+              </button>
+              <button
+                type="button"
+                @click="switchVideoSource('url')"
+                :class="videoSourceType === 'url' ? 'bg-[#ff0000] text-white font-bold' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'"
+                class="py-1.5 px-2 rounded-md text-[10px] font-mono uppercase tracking-wider text-center transition-all cursor-pointer"
+              >
+                Web Link
+              </button>
+            </div>
+          </div>
+
+          <!-- Dynamic settings area -->
+          <div v-if="videoSourceType === 'default'" class="bg-neutral-950 border border-neutral-900 rounded-xl p-4 text-center">
+            <p class="text-[10px] text-neutral-400 leading-relaxed">
+              Using the package default settings. If this package has a demo video, it will continue to be shown to customers.
+            </p>
+          </div>
+
+          <div v-if="videoSourceType === 'local'" class="bg-neutral-950 border border-neutral-900 rounded-xl p-4 space-y-3">
+            <h4 class="text-[10px] font-mono text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span v-html="getIcon('upload', 'w-3.5 h-3.5 text-[#ff0000]')"></span>
+              Video: Device Local File
+            </h4>
+            <p class="text-[10px] text-neutral-500 leading-relaxed">
+              Select a video file (MP4/WebM) directly from your device storage.
+            </p>
+            
+            <label class="flex flex-col items-center justify-center border border-dashed border-neutral-800 hover:border-[#ff0000] bg-[#1a1a1a]/40 hover:bg-[#1a1a1a]/80 transition-all py-5 px-3 rounded-lg cursor-pointer text-center group">
+              <span v-html="getIcon('video', 'w-6 h-6 text-neutral-600 group-hover:text-[#ff0000] mb-1.5 transition-colors')"></span>
+              <span class="text-xs font-mono font-medium text-gray-300">Choose Video File</span>
+              <span class="text-[9px] text-neutral-500 mt-0.5">Supports MP4, WebM</span>
+              <input 
+                type="file" 
+                accept="video/*" 
+                class="hidden" 
+                @change="handleLocalVideoUpload"
+              />
+            </label>
+
+            <!-- Local file feedback panel -->
+            <div v-if="customUrlInput && (customUrlInput.startsWith('data:') || customUrlInput.startsWith('blob:'))" class="bg-neutral-900 border border-neutral-800 rounded-lg p-2.5 space-y-1.5">
+              <div class="flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono font-semibold">
+                <span v-html="getIcon('check', 'w-3.5 h-3.5 text-emerald-500 animate-pulse')"></span>
+                <span>Local Video Uploaded Successfully!</span>
+              </div>
+              <div v-if="localVideoFileName" class="text-[10px] text-neutral-300 font-mono truncate">
+                <span class="text-neutral-500">File:</span> {{ localVideoFileName }}
+              </div>
+              <div class="text-[9px] leading-relaxed text-neutral-400">
+                <span v-if="localVideoSizeStatus === 'permanent'" class="text-emerald-500 font-medium font-mono">✓ Saved permanently in your browser (compressed Base64).</span>
+                <span v-else class="text-amber-500 font-medium font-mono">⚠ Large video file! Saved temporarily for this preview session (expires upon page reload).</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="videoSourceType === 'url'" class="bg-neutral-950 border border-neutral-900 rounded-xl p-4 space-y-3">
+            <h4 class="text-[10px] font-mono text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span v-html="getIcon('link', 'w-3.5 h-3.5 text-[#ff0000]')"></span>
+              Video: Direct Web Link
+            </h4>
+            <p class="text-[10px] text-neutral-500 leading-relaxed">
+              Enter a direct URL of a public online video. The link must end with .mp4 or .webm.
+            </p>
+            <input
+              type="url"
+              placeholder="https://example.com/my_video.mp4"
+              v-model="customUrlInput"
+              class="w-full bg-neutral-900 border border-neutral-800 focus:border-[#ff0000] rounded-lg py-2 px-3 text-xs text-gray-200 placeholder-neutral-600 focus:outline-none transition-all font-mono"
+            />
+            <div v-if="customUrlInput && !customUrlInput.startsWith('data:') && !customUrlInput.startsWith('blob:')" class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+              <span v-html="getIcon('check', 'w-3.5 h-3.5')"></span> Video link configured for card!
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center justify-between pt-3 border-t border-neutral-900 mt-4">
+          <button
+            v-if="packVideos[editingPack.id] || packTitles[editingPack.id] || packDescriptions[editingPack.id] || packPrices[editingPack.id]"
+            @click="resetPackToDefault"
+            class="text-neutral-500 hover:text-red-500 text-xs font-mono uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span v-html="getIcon('trash', 'w-3.5 h-3.5')"></span>
+            Reset to Default
+          </button>
+          <span v-else class="text-[10px] text-neutral-600 font-mono">No changes</span>
+          
+          <div class="flex gap-2">
+            <button
+              @click="editingPack = null"
+              class="bg-neutral-900 hover:bg-neutral-800 text-gray-400 hover:text-white px-3 py-2 rounded-lg text-xs font-mono font-bold uppercase transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              @click="saveCustomization"
+              class="bg-[#ff0000] hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-all uppercase tracking-wider cursor-pointer"
+            >
+              Save All
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Security Door Password Modal -->
+    <div 
+      v-if="showAdminPasswordModal"
+      class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4"
+      @click="closeAdminModal"
+    >
+      <div 
+        class="bg-[#121212] border border-[#1f1f1f] w-full max-w-sm rounded-xl p-6 relative shadow-2xl"
+        @click.stop
+      >
+        <button
+          @click="closeAdminModal"
+          class="absolute top-4 right-4 text-neutral-500 hover:text-white transition-colors cursor-pointer"
+        >
+          <span v-html="getIcon('x', 'w-5 h-5')"></span>
+        </button>
+
+        <div class="text-center mb-6">
+          <div class="w-10 h-10 bg-red-950/60 text-red-500 rounded-full flex items-center justify-center mx-auto mb-3 border border-red-900/30">
+            <span v-html="getIcon('lock', 'w-5 h-5')"></span>
+          </div>
+          <h3 class="text-sm font-bold text-white uppercase tracking-wider font-sans">Admin Access</h3>
+          <p class="text-[10px] text-neutral-400 mt-1 font-sans">Enter the master key to unlock the card customization tools.</p>
+        </div>
+
+        <form @submit.prevent="handleAdminLogin" class="space-y-4">
+          <div>
+            <label class="block text-[9px] font-mono text-neutral-500 uppercase tracking-wider mb-1.5">Master Password</label>
+            <input
+              type="password"
+              placeholder="Enter password"
+              v-model="adminPasswordInput"
+              class="w-full bg-neutral-950 border border-neutral-800 focus:border-[#ff0000] rounded-lg py-2.5 px-3.5 text-xs text-gray-200 focus:outline-none transition-all font-mono"
+              ref="pwdInput"
+              autoFocus
+            />
+          </div>
+
+          <div v-if="adminPasswordError" class="text-[10px] text-red-500 font-mono font-medium text-center">
+            ⚠ {{ adminPasswordError }}
+          </div>
+
+          <div class="flex gap-2.5 pt-2">
+            <button
+              type="button"
+              @click="closeAdminModal"
+              class="flex-1 bg-neutral-900 hover:bg-neutral-800 text-gray-400 hover:text-white py-2.5 rounded-lg text-xs font-mono font-bold uppercase transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer"
+            >
+              Login
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Floating Trigger Actions (Telegram support link + Scroll top trigger) -->
+    <div class="fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+      <button
+        v-if="showScrollTop"
+        @click="scrollToTop"
+        class="w-11 h-11 rounded-full bg-neutral-900 hover:bg-red-600 text-gray-400 hover:text-white flex items-center justify-center border border-neutral-800 hover:border-red-500 transition-all shadow-lg shadow-black/80 cursor-pointer"
+        title="Scroll to Top"
+      >
+        <span v-html="getIcon('arrowUp', 'w-5 h-5')"></span>
+      </button>
+      
+      <a
+        href="https://t.me/sisjujd"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="w-14 h-14 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-all shadow-xl shadow-red-950/30 hover:scale-105 active:scale-95 group relative"
+        title="Contact Us on Telegram"
+      >
+        <span v-html="getIcon('send', 'w-6 h-6 fill-current ml-0.5')"></span>
+        <span class="absolute right-full mr-3 bg-neutral-900 border border-neutral-800 text-white text-[10px] font-mono px-2.5 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all shadow-xl pointer-events-none">
+          Telegram Support Active
+        </span>
+      </a>
+    </div>
+
+  </div>
+
+  <!-- Dynamic Saved Settings placeholder tag used for packaging/export injections -->
+  <script id="custom-static-config" type="application/json">{}</script>
+
+  <!-- Complete Vue 3 Client Application Controller Script -->
+  <script>
+    const { createApp, ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+
+    // Static Category metadata and imagery arrays
+    const categories = [
+      "Lightroom Presets",
+      "Cinematic LUTs",
+      "Video Packs",
+      "Sound FX",
+      "Overlays",
+      "VIP Packs"
+    ];
+
+    const categoryImages = [
+      "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?q=80&w=400&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=400&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=400&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=400&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?q=80&w=400&auto=format&fit=crop",
+      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop"
+    ];
+
+    const borderColors = [
+      "group-hover:border-red-600/60",
+      "group-hover:border-purple-600/60",
+      "group-hover:border-rose-600/60",
+      "group-hover:border-amber-600/60",
+      "group-hover:border-emerald-600/60",
+      "group-hover:border-blue-600/60"
+    ];
+
+    const gradients = [
+      "from-red-950/30 via-neutral-900 to-black",
+      "from-purple-950/30 via-neutral-900 to-black",
+      "from-rose-950/30 via-neutral-900 to-black",
+      "from-amber-950/30 via-neutral-900 to-black",
+      "from-emerald-950/30 via-neutral-900 to-black",
+      "from-blue-950/30 via-neutral-900 to-black",
+    ];
+
+    const purchaseNotificationTemplates = [
+      "Usuário @matheus_v... adquiriu o Pack #07 via Telegram!",
+      "Usuário @carla_silva... comprou o Pack #18 com Suporte VIP!",
+      "Usuário @bruno_designer... desbloqueou o Pack #01!",
+      "Usuário @felipe_prod... acabou de resgatar o Combo VIP!",
+      "Usuário @ana_clara... garantiu o Pack #12 para Lightroom!",
+      "Usuário @diego_editor... baixou o Pack #15 de LUTs Cinematográficos!",
+      "Usuário @julia_m... adquiriu o Pack #22 de Overlays Premium!"
+    ];
+
+    // Auto-generate grid of 30 items
+    const allPacks = Array.from({ length: 30 }, (_, index) => {
+      const idNum = index + 1;
+      const idStr = idNum < 10 ? `0${idNum}` : `${idNum}`;
+      const categoryIndex = index % categories.length;
+      let category = categories[categoryIndex];
+      
+      const isPack01 = idStr === "01";
+      if (isPack01) {
+        category = "Video Packs";
+      }
+
+      const gradient = gradients[categories.indexOf(category)];
+      const borderColor = borderColors[categories.indexOf(category)];
+      let imageUrl = categoryImages[categories.indexOf(category)];
+
+      if (isPack01) {
+        imageUrl = "https://images.unsplash.com/photo-1511895426328-dc8714191300?q=80&w=400&auto=format&fit=crop";
+      }
+
+      let specs = ["Suporte VIP", "Acesso Imediato", "Uso Comercial"];
+      const samplePrices = [15, 25, 35, 45, 50, 75, 99];
+      const basePrice = samplePrices[(categoryIndex + index) % samplePrices.length];
+      let price = `$ ${basePrice}`;
+
+      if (isPack01) {
+        specs = ["Vídeo de Alta Resolução", "Formato Profissional", "Uso Comercial Livre"];
+        price = "$ 35";
+      } else if (category === "Lightroom Presets") {
+        specs = ["55 Presets Inclusos", "DNG & XMP Format", "Mobile & Desktop"];
+      } else if (category === "Cinematic LUTs") {
+        specs = ["35 Cores Profissionais", "Suporte Rec.709 & Log", "Para Premiere & Resolve"];
+      } else if (category === "Video Packs") {
+        specs = ["Resolução 4K Ultra HD", "60 FPS Clipes Livres", "Transições Inclusas"];
+      } else if (category === "Sound FX") {
+        specs = ["Qualidade Studio WAV", "150+ Efeitos de Som", "Mixados & Masterizados"];
+      } else if (category === "Overlays") {
+        specs = ["Fundo Preto/Transparente", "Arraste & Solte Fácil", "4K Qualidade Premium"];
+      } else if (category === "VIP Packs") {
+        specs = ["Acesso Privado Vitalício", "Atualizações Mensais", "Suporte Especializado 24/7"];
+      }
+
+      return {
+        id: idStr,
+        title: isPack01 ? "Família incrível" : `Pack #${idStr}`,
+        category: category,
+        description: isPack01 ? "Família unida." : "Descrição do pack aqui - conteúdo exclusivo e material selecionado a dedo para elevar o nível das suas produções e criações digitais.",
+        specs: specs,
+        gradient: gradient,
+        borderColor: borderColor,
+        imageUrl: imageUrl,
+        price: price
+      };
+    });
+
+    createApp({
+      setup() {
+        // App settings extraction
+        const getBakedConfig = (key) => {
+          try {
+            const el = document.getElementById("custom-static-config");
+            if (el) {
+              const config = JSON.parse(el.textContent || "{}");
+              if (config[key]) return config[key];
+            }
+          } catch(e) {}
+          return null;
+        };
+
+        const isEditingBlockedInBaked = computed(() => {
+          return getBakedConfig("disableEditing") === true;
+        });
+
+        // App States
+        const searchQuery = ref("");
+        const activeNotification = ref("");
+        const selectedPreviewPack = ref(null);
+        const showScrollTop = ref(false);
+        const copiedLinkIndex = ref(null);
+
+        // Custom config states with local fallback
+        const packVideos = ref(getBakedConfig("videos") || {});
+        const packTitles = ref(getBakedConfig("titles") || {});
+        const packDescriptions = ref(getBakedConfig("descriptions") || {});
+        const packPrices = ref(getBakedConfig("prices") || {});
+
+        // Pre-fill defaults
+        if (!packVideos.value["01"]) {
+          packVideos.value["01"] = "https://assets.mixkit.co/videos/preview/mixkit-happy-family-smiling-and-waving-at-camera-34135-large.mp4";
+        }
+
+        // Local Storage Sync (runs only on client-side context)
+        const loadSavedConfig = () => {
+          try {
+            const savedVideos = localStorage.getItem("custom_pack_videos");
+            const savedTitles = localStorage.getItem("custom_pack_titles");
+            const savedDescriptions = localStorage.getItem("custom_pack_descriptions");
+            const savedPrices = localStorage.getItem("custom_pack_prices");
+
+            if (savedVideos && !getBakedConfig("videos")) packVideos.value = JSON.parse(savedVideos);
+            if (savedTitles && !getBakedConfig("titles")) packTitles.value = JSON.parse(savedTitles);
+            if (savedDescriptions && !getBakedConfig("descriptions")) packDescriptions.value = JSON.parse(savedDescriptions);
+            if (savedPrices && !getBakedConfig("prices")) packPrices.value = JSON.parse(savedPrices);
+          } catch(e) {}
+        };
+
+        // Admin Security States
+        const isAdmin = ref(false);
+        try {
+          isAdmin.value = sessionStorage.getItem("admin_session") === "active";
+        } catch(e) {}
+
+        const showAdminPasswordModal = ref(false);
+        const adminPasswordInput = ref("");
+        const adminPasswordError = ref("");
+        const disableEditingInExport = ref(true);
+        const exportSuccess = ref(false);
+
+        // Edit Card forms
+        const editingPack = ref(null);
+        const customUrlInput = ref("");
+        const customTitleInput = ref("");
+        const customDescriptionInput = ref("");
+        const customPriceInput = ref("");
+        const videoSourceType = ref("default");
+        const localVideoFileName = ref("");
+        const localVideoSizeStatus = ref("none");
+
+        // Computed
+        const currentYear = computed(() => new Date().getFullYear());
+        const filteredPacks = computed(() => {
+          return allPacks.filter(pack => {
+            const q = searchQuery.value.trim().toLowerCase();
+            if (!q) return true;
+            const title = packTitles.value[pack.id] || pack.title;
+            const desc = packDescriptions.value[pack.id] || pack.description;
+            const price = packPrices.value[pack.id] || pack.price;
+            return title.toLowerCase().includes(q) || 
+                   desc.toLowerCase().includes(q) || 
+                   pack.id.includes(q) ||
+                   price.toLowerCase().includes(q);
+          });
+        });
+
+        // Event hooks
+        const scrollListener = () => {
+          showScrollTop.value = window.scrollY > 400;
+        };
+
+        let notificationTimer = null;
+        let tickerInterval = null;
+
+        const cycleNotifications = () => {
+          const run = () => {
+            const users = ["@matheus_v", "@carla_silva", "@bruno_designer", "@felipe_prod", "@ana_clara", "@diego_editor", "@julia_m", "@lucas_k", "@mari_s", "@gabs_design"];
+            const actions = ["adquiriu", "comprou", "desbloqueou", "garantiu o", "baixou o"];
+            const randomUser = users[Math.floor(Math.random() * users.length)];
+            const randomAction = actions[Math.floor(Math.random() * actions.length)];
+            
+            const randomPackIndex = Math.floor(Math.random() * allPacks.length);
+            const pack = allPacks[randomPackIndex];
+            const title = packTitles.value[pack.id] || pack.title;
+            
+            let notification = `Usuário ${randomUser}... ${randomAction} o ${title}!`;
+            if (Math.random() > 0.5) {
+              const suffixes = [" via Telegram!", " com Suporte VIP!", " de forma imediata!", "!"];
+              notification += suffixes[Math.floor(Math.random() * suffixes.length)];
+            }
+            activeNotification.value = notification;
+            
+            notificationTimer = setTimeout(() => {
+              activeNotification.value = "";
+            }, 5000);
+          };
+          tickerInterval = setInterval(run, 14000);
+          setTimeout(run, 3000);
+        };
+
+        onMounted(() => {
+          loadSavedConfig();
+          window.addEventListener("scroll", scrollListener);
+          cycleNotifications();
+        });
+
+        onUnmounted(() => {
+          window.removeEventListener("scroll", scrollListener);
+          clearTimeout(notificationTimer);
+          clearInterval(tickerInterval);
+        });
+
+        // Methods
+        const scrollToSection = (id) => {
+          const el = document.getElementById(id);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+
+        const scrollToTop = () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        };
+
+        const handleShare = (packId) => {
+          const url = `${window.location.origin}${window.location.pathname}#pack-${packId}`;
+          navigator.clipboard.writeText(url).then(() => {
+            copiedLinkIndex.value = packId;
+            setTimeout(() => {
+              copiedLinkIndex.value = null;
+            }, 2000);
+          });
+        };
+
+        const handleVideoError = (packId) => {
+          // Fallback if video fails to load
+          if (packVideos.value[packId] && packVideos.value[packId] !== "https://vjs.zencdn.net/v/oceans.mp4") {
+            packVideos.value[packId] = "https://vjs.zencdn.net/v/oceans.mp4";
+          }
+        };
+
+        const handleAdminLogin = () => {
+          if (adminPasswordInput.value === "8080") {
+            isAdmin.value = true;
+            try {
+              sessionStorage.setItem("admin_session", "active");
+            } catch(e) {}
+            showAdminPasswordModal.value = false;
+            adminPasswordInput.value = "";
+            adminPasswordError.value = "";
+          } else {
+            adminPasswordError.value = "Incorrect password!";
+          }
+        };
+
+        const logoutAdmin = () => {
+          isAdmin.value = false;
+          try {
+            sessionStorage.removeItem("admin_session");
+          } catch(e) {}
+        };
+
+        const closeAdminModal = () => {
+          showAdminPasswordModal.value = false;
+          adminPasswordInput.value = "";
+          adminPasswordError.value = "";
+        };
+
+        const openEditModal = (pack) => {
+          editingPack.value = pack;
+          customTitleInput.value = packTitles.value[pack.id] || "";
+          customPriceInput.value = packPrices.value[pack.id] || "";
+          customDescriptionInput.value = packDescriptions.value[pack.id] || "";
+          
+          const currentVideo = packVideos.value[pack.id];
+          if (!currentVideo) {
+            videoSourceType.value = "default";
+            customUrlInput.value = "";
+          } else if (currentVideo.startsWith("data:") || currentVideo.startsWith("blob:")) {
+            videoSourceType.value = "local";
+            customUrlInput.value = currentVideo;
+            localVideoFileName.value = "Video Loaded";
+            localVideoSizeStatus.value = currentVideo.startsWith("data:") ? "permanent" : "temp";
+          } else {
+            videoSourceType.value = "url";
+            customUrlInput.value = currentVideo;
+          }
+        };
+
+        const switchVideoSource = (type) => {
+          videoSourceType.value = type;
+          if (type === "default") {
+            customUrlInput.value = "";
+          } else if (type === "local") {
+            customUrlInput.value = "";
+            localVideoFileName.value = "";
+            localVideoSizeStatus.value = "none";
+          } else if (type === "url") {
+            customUrlInput.value = "";
+          }
+        };
+
+        const handleLocalVideoUpload = (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            localVideoFileName.value = file.name;
+            const maxPersistentSize = 3.5 * 1024 * 1024; // 3.5 MB
+            if (file.size <= maxPersistentSize) {
+              localVideoSizeStatus.value = "permanent";
+              const reader = new FileReader();
+              reader.onload = (event) => {
+                customUrlInput.value = event.target?.result;
+              };
+              reader.readAsDataURL(file);
+            } else {
+              localVideoSizeStatus.value = "temp";
+              customUrlInput.value = URL.createObjectURL(file);
+            }
+          }
+        };
+
+        const saveCustomization = () => {
+          const id = editingPack.value.id;
+          
+          // Save title
+          if (customTitleInput.value.trim()) {
+            packTitles.value[id] = customTitleInput.value.trim();
+          } else {
+            delete packTitles.value[id];
+          }
+
+          // Save price
+          if (customPriceInput.value.trim()) {
+            packPrices.value[id] = customPriceInput.value.trim();
+          } else {
+            delete packPrices.value[id];
+          }
+
+          // Save description
+          if (customDescriptionInput.value.trim()) {
+            packDescriptions.value[id] = customDescriptionInput.value.trim();
+          } else {
+            delete packDescriptions.value[id];
+          }
+
+          // Save video source
+          if (videoSourceType.value === "default") {
+            delete packVideos.value[id];
+          } else if (customUrlInput.value.trim()) {
+            packVideos.value[id] = customUrlInput.value.trim();
+          }
+
+          // Save to local storage
+          try {
+            localStorage.setItem("custom_pack_videos", JSON.stringify(packVideos.value));
+            localStorage.setItem("custom_pack_titles", JSON.stringify(packTitles.value));
+            localStorage.setItem("custom_pack_descriptions", JSON.stringify(packDescriptions.value));
+            localStorage.setItem("custom_pack_prices", JSON.stringify(packPrices.value));
+          } catch(e) {}
+
+          editingPack.value = null;
+        };
+
+        const resetPackToDefault = () => {
+          const id = editingPack.value.id;
+          delete packVideos.value[id];
+          delete packTitles.value[id];
+          delete packDescriptions.value[id];
+          delete packPrices.value[id];
+
+          try {
+            localStorage.setItem("custom_pack_videos", JSON.stringify(packVideos.value));
+            localStorage.setItem("custom_pack_titles", JSON.stringify(packTitles.value));
+            localStorage.setItem("custom_pack_descriptions", JSON.stringify(packDescriptions.value));
+            localStorage.setItem("custom_pack_prices", JSON.stringify(packPrices.value));
+          } catch(e) {}
+
+          editingPack.value = null;
+        };
+
+        const handleExportHtml = () => {
+          try {
+            const payload = {
+              videos: packVideos.value,
+              titles: packTitles.value,
+              descriptions: packDescriptions.value,
+              prices: packPrices.value,
+              disableEditing: disableEditingInExport.value
+            };
+
+            const fullHtml = document.documentElement.outerHTML;
+            
+            // Generate clean target script payload tag
+            const configScriptTag = `\n  <script id="custom-static-config" type="application/json">${JSON.stringify(payload, null, 2)}<\/script>\n`;
+            
+            let finalHtml = "<!DOCTYPE html>\n" + fullHtml;
+            if (finalHtml.includes('<script id="custom-static-config" type="application/json">')) {
+              finalHtml = finalHtml.replace(/<script id="custom-static-config" type="application\/json">[\s\S]*?<\/script>/, configScriptTag);
+            } else {
+              finalHtml = finalHtml.replace('<script id="custom-static-config" type="application/json">{}<\/script>', configScriptTag);
+            }
+
+            const blob = new Blob([finalHtml], { type: "text/html;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "index.html";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            exportSuccess.value = true;
+            setTimeout(() => {
+              exportSuccess.value = false;
+            }, 5000);
+          } catch(e) {
+            alert("Export failed: " + e.message);
+          }
+        };
+
+        // Lucide Vector Replacement map
+        const getIcon = (name, className = "w-4 h-4") => {
+          const iconSvgs = {
+            search: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>`,
+            send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>`,
+            play: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`,
+            sparkles: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.32 11.32l.707-.707M12 5a7 7 0 0 0-7 7h14a7 7 0 0 0-7-7z"></path></svg>`,
+            filter: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>`,
+            layers: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polygon points="2 17 12 22 22 17"></polygon><polygon points="2 12 12 17 22 12"></polygon></svg>`,
+            sliders: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>`,
+            music: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>`,
+            film: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></svg>`,
+            crown: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"></path><path d="M3 20h18v2H3z"></path></svg>`,
+            checkCircle: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+            eye: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`,
+            arrowUp: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>`,
+            x: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`,
+            check: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+            lock: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
+            messageSquare: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+            shieldCheck: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 11l2 2 4-4"></path></svg>`,
+            zap: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
+            externalLink: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`,
+            video: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>`,
+            upload: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>`,
+            link: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`,
+            link2: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>`,
+            trash: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${className}"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`
+          };
+          return iconSvgs[name] || iconSvgs.sparkles;
+        };
+
+        return {
+          // States
+          searchQuery,
+          activeNotification,
+          selectedPreviewPack,
+          showScrollTop,
+          copiedLinkIndex,
+          packVideos,
+          packTitles,
+          packDescriptions,
+          packPrices,
+          isAdmin,
+          showAdminPasswordModal,
+          adminPasswordInput,
+          adminPasswordError,
+          disableEditingInExport,
+          exportSuccess,
+          editingPack,
+          customUrlInput,
+          customTitleInput,
+          customDescriptionInput,
+          customPriceInput,
+          videoSourceType,
+          localVideoFileName,
+          localVideoSizeStatus,
+          isEditingBlockedInBaked,
+
+          // Computations
+          currentYear,
+          filteredPacks,
+
+          // Actions
+          scrollToSection,
+          scrollToTop,
+          handleShare,
+          handleVideoError,
+          handleAdminLogin,
+          logoutAdmin,
+          closeAdminModal,
+          openEditModal,
+          switchVideoSource,
+          handleLocalVideoUpload,
+          saveCustomization,
+          resetPackToDefault,
+          handleExportHtml,
+          getIcon
+        };
+      }
+    }).mount('#root');
+  </script>
+</body>
+</html>
